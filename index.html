@@ -3,63 +3,200 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RomanSuite – DOCX</title>
+  <title>RomanSuite</title>
+  <link rel="icon" href="data:," />
   <style>
-    :root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--accent:#22d3ee;--btn:#10b981;}
+    :root{--bg:#0f172a;--card:#111827;--fg:#e5e7eb;--muted:#9ca3af;--acc:#10b981;}
     *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--text);}
-    header{padding:14px 16px;border-bottom:1px solid #1f2937;background:rgba(0,0,0,.2); position:sticky;top:0}
-    h1{margin:0;font-size:18px;display:flex;gap:10px;align-items:center}
-    .wrap{max-width:860px;margin:0 auto;padding:14px}
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
-    button{border:0;border-radius:10px;padding:10px 14px;font-weight:600}
-    .primary{background:var(--btn);color:#04210f}
-    .secondary{background:#0ea5e9;color:#032233}
-    .muted{background:#374151;color:#d1d5db}
-    textarea{width:100%;min-height:60vh;border:1px solid #334155;border-radius:12px;background:#0b1220;color:var(--text);padding:12px;font-size:15px;line-height:1.55;resize:vertical}
-    .hint{color:var(--muted);font-size:12px;margin-top:6px}
-    .badge{display:inline-flex;align-items:center;gap:6px;background:#0b3b44;border:1px solid #155e75;color:#a5f3fc;padding:8px 12px;border-radius:999px;font-weight:700}
-    .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111827;border:1px solid #374151;color:#e5e7eb;padding:10px 14px;border-radius:10px;opacity:0;transition:.25s}
-    .toast.show{opacity:1}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--fg)}
+    header{padding:14px 16px;border-bottom:1px solid #1f2937;background:linear-gradient(0deg,#0b1222,#0f172a)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    h1{font-size:18px;margin:0;font-weight:700;display:flex;gap:8px;align-items:center}
+    h1 .dot{width:8px;height:8px;border-radius:999px;background:#60a5fa;display:inline-block}
+    main{max-width:900px;margin:18px auto;padding:0 14px}
+    .btn{appearance:none;border:1px solid #1f2937;background:#0b1222;color:var(--fg);padding:10px 14px;border-radius:12px;font-weight:600}
+    .btn:active{transform:scale(.98)}
+    .btn.acc{background:var(--acc);border-color:transparent;color:#062a1f}
+    .btn.blue{background:#0ea5e9;border-color:transparent}
+    .btn.ghost{background:#111827}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid #1f2937;background:#0b1222}
+    .icon{font-weight:900;font-size:18px}
+    .grid{display:grid;gap:14px}
+    textarea{width:100%;min-height:62vh;resize:vertical;padding:16px 14px;background:#0b1222;border:1px solid #1f2937;color:var(--fg);border-radius:14px;line-height:1.6;font-size:18px}
+    .hint{color:var(--muted);font-size:13px;margin-top:8px}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+    @media (min-width:720px){textarea{min-height:66vh}}
   </style>
-
-  <!-- DOCX dönüştürme kütüphanesi -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-docx-js/0.4.1/html-docx.js" defer></script>
+  <!-- JSZip (DOCX üretimi için) -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
-  <header class="wrap">
-    <h1>📖 RomanSuite <span class="badge" id="saveDocx">⬇️ DOCX İndir</span></h1>
+  <header>
+    <div class="row">
+      <h1><span class="dot"></span>RomanSuite</h1>
+      <span class="pill" id="saveDocx"><span class="icon">⬇️</span> DOCX İndir</span>
+    </div>
   </header>
 
-  <main class="wrap">
-    <div class="row">
-      <button class="primary" id="toNovel">Roman Formatına Çevir</button>
-      <button class="secondary" id="detect">Başlıkları Algıla</button>
-      <button class="muted" id="clear">Temizle</button>
+  <main>
+    <div class="toolbar">
+      <button class="btn acc" id="toNovel">Roman Formatına Çevir</button>
+      <button class="btn blue" id="detectHeads">Başlıkları Algıla</button>
+      <button class="btn ghost" id="clear">Temizle</button>
     </div>
 
-    <textarea id="editor" placeholder="Metni buraya yapıştır.
+    <div class="grid">
+      <textarea id="editor" placeholder="Metni buraya yapıştır.
 Boş satır = yeni paragraf.
 Shift+Enter = satır sonu."></textarea>
-
-    <div class="hint">
-      İpuçları: Paragrafları boş satırla ayır. “Roman Formatına Çevir” akıllı tırnak, kısa/uzun tire ve üç nokta gibi düzeltmeler yapar.
+      <div class="hint">İpuçları: Paragrafları boş satırla ayır. “Roman Formatına Çevir” akıllı tırnak, kısa/uzun tire ve üç nokta gibi düzeltmeler yapar.</div>
     </div>
   </main>
 
-  <div id="toast" class="toast">Hazır!</div>
-
   <script>
-    // ufak yardımcılar
-    const $ = sel => document.querySelector(sel);
-    const toast = (msg)=>{ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1800); };
+    // mini yardımcı
+    const $ = s => document.querySelector(s);
 
-    const editor = $("#editor");
+    // Metin düzeltici: paragraf + imla + boşluklar
+    function formatNovelText(input){
+      if(!input) return "";
+      // Satır sonu->normalize
+      let t = input.replace(/\r\n?/g,'\n').trim();
 
-    // Basit tipografik düzeltmeler
-    function smartPunctuation(text){
-      return text
-        .replace(/\"([^\"]*)\"/g,'“$1”')     // "..." → “...”
-        .replace(/\'([^\']*)\'/g,'‘$1’')     // '...' → ‘...’
-        .replace(/\.{3,}/g,'…')              // ... → …
-        .replace(/(^|\s)--(\s|$)/g,'—
+      // Akıllı tırnaklar (basit yaklaşım)
+      t = t
+        .replace(/\"([^\"]*)\"/g,"“$1”")
+        .replace(/\'([^\']*)\'/g,"‘$1’");
+
+      // Üç nokta
+      t = t.replace(/\.{3,}/g,"…");
+
+      // Tire: -- -> — ; - arasına boşluk -> – (diyalog dışı kullanımlar için hafif dokunuş)
+      t = t.replace(/\s--\s/g," — ");
+      t = t.replace(/ ?- ?/g," – ");
+
+      // Fazla boşlukları toparla
+      t = t.replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n");
+
+      // Paragrafları boş satır üzerinden birleştir
+      const paras = t.split(/\n{2,}/).map(p=>{
+        // satır içi kırılmaları tek satır yap (Shift+Enter korunsun: "↵" işaretine çevirip geri alacağız)
+        p = p.replace(/(?:^|[^\S\r\n])\n(?!\n)/g," ");
+        // Diyalog çizgileri düzelt: "– " ile başlasın
+        p = p.replace(/^\s*[-–]\s*/,"– ");
+        return p.trim();
+      }).filter(Boolean);
+
+      return paras.join("\n\n");
+    }
+
+    // Basit başlık algılayıcı (satırı tamamen büyük/baş harfi büyük ve kısa ise başlık kabul)
+    function detectHeadings(text){
+      const lines = text.split(/\r?\n/);
+      return lines.map(l=>{
+        const s = l.trim();
+        if(!s) return "";
+        const isTitle = (s.length <= 48) &&
+                        (/^[A-ZÇĞİÖŞÜ0-9\s\-'“”‘’:.!?]+$/.test(s) || /^[A-ZÇĞİÖŞÜ][^.!?]+$/.test(s));
+        return isTitle ? ("# " + s) : s;
+      }).join("\n");
+    }
+
+    // DOCX oluşturucu (çok küçük bir Word paket yapısı)
+    async function buildDocx(text){
+      const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+      const xmlParas = text.split(/\n{2,}/).map(p=>{
+        const runs = esc(p).split(/\n/).map(run =>
+          `<w:r><w:t xml:space="preserve">${run}</w:t></w:r>`).join(`<w:r><w:br/></w:r>`);
+        return `<w:p><w:pPr><w:spacing w:after="240"/></w:pPr>${runs}</w:p>`;
+      }).join("");
+
+      const documentXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+ xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+ xmlns:v="urn:schemas-microsoft-com:vml"
+ xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+ xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+ xmlns:w10="urn:schemas-microsoft-com:office:word"
+ xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+ xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+ mc:Ignorable="w14 wp14">
+ <w:body>
+  ${xmlParas || '<w:p/>'}
+  <w:sectPr><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>
+ </w:body>
+</w:document>`;
+
+      const rels =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+ <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+
+      const styles =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+ <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+  <w:name w:val="Normal"/>
+  <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/></w:rPr>
+ </w:style>
+</w:styles>`;
+
+      const contentTypes =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+ <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+ <Default Extension="xml" ContentType="application/xml"/>
+ <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+ <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>`;
+
+      const rootRels =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+ <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+      const zip = new JSZip();
+      zip.file("[Content_Types].xml", contentTypes);
+      zip.folder("_rels").file(".rels", rootRels);
+      zip.folder("word").file("document.xml", documentXml);
+      zip.folder("word").file("styles.xml", styles);
+      zip.folder("word").folder("_rels").file("document.xml.rels", rels);
+
+      return await zip.generateAsync({type:"blob"});
+    }
+
+    // Olaylar
+    $("#toNovel").addEventListener("click", ()=>{
+      const t = $("#editor").value;
+      $("#editor").value = formatNovelText(t);
+    });
+
+    $("#detectHeads").addEventListener("click", ()=>{
+      $("#editor").value = detectHeadings($("#editor").value);
+    });
+
+    $("#clear").addEventListener("click", ()=>{
+      $("#editor").value = "";
+    });
+
+    $("#saveDocx").addEventListener("click", async ()=>{
+      const text = $("#editor").value.trim();
+      const blob = await buildDocx(text || " ");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "roman.docx";
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    });
+  </script>
+</body>
+</html>
