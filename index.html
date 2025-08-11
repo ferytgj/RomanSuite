@@ -1,256 +1,146 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RomanSuite – Drive’dan Birleştir & DOCX İndir</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RomanSuite • Google Drive Login</title>
   <style>
-    :root{--c:#1a73e8;--bg:#0b0f14;--fg:#e9eef6;--mut:#9bb0c9;--card:#111824;--btn:#1f2937}
-    html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:960px;margin:24px auto;padding:0 16px}
-    header{display:flex;align-items:center;gap:12px;margin:8px 0 10px}
-    header h1{font-size:20px;margin:0}
-    .bar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px}
-    .btn{appearance:none;border:1px solid #2a3647;background:var(--btn);color:var(--fg);
-         padding:10px 14px;border-radius:10px;cursor:pointer}
-    .btn.primary{background:var(--c);border-color:var(--c)}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
-    .note{color:var(--mut);font-size:13px}
-    textarea#editor{width:100%;min-height:48vh;background:var(--card);color:var(--fg);
-      border:1px solid #223047;border-radius:12px;padding:14px;box-sizing:border-box;resize:vertical}
-    .status{margin-top:8px;font-size:13px;color:#b6c4d8}
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", sans-serif; }
+    body { margin: 24px; }
+    .card { max-width: 720px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    .row { display:flex; gap:12px; flex-wrap: wrap; margin: 12px 0; }
+    button { padding:10px 14px; border-radius:10px; border:1px solid #d1d5db; cursor:pointer; }
+    button:disabled { opacity:.55; cursor: not-allowed; }
+    code { background:#f3f4f6; padding:2px 6px; border-radius:6px; }
+    ul { padding-left: 18px; }
+    .ok { color: #0a7a30; }
+    .err { color: #b42318; white-space: pre-wrap; }
+    .muted { color:#6b7280; }
   </style>
-
-  <!-- Google APIs (Client + Picker) -->
-  <script src="https://apis.google.com/js/api.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-  <!-- DOCX üretimi için güvenilir kütüphane -->
-  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v16H5z" stroke="#7aa2ff" stroke-width="1.5"/><path d="M8 7h8M8 10h8M8 13h5" stroke="#7aa2ff" stroke-width="1.5" stroke-linecap="round"/></svg>
-      <h1>RomanSuite</h1>
-      <span class="note">Drive’dan çoklu dosya → tek DOCX (roman biçimi)</span>
-    </header>
+  <div class="card">
+    <h1>Google Drive’a giriş</h1>
+    <p class="muted">GIS popup akışıyla giriş yapar, Drive’dan ilk 10 dosyayı listeler.</p>
 
-    <div class="bar">
-      <button id="pickDrive" class="btn">Drive’dan Bul (Çoklu)</button>
-      <button id="toDocx" class="btn primary" disabled>DOCX indir</button>
-      <button id="clear" class="btn">Temizle</button>
+    <div id="status" class="muted">Hazır…</div>
+
+    <div class="row">
+      <button id="btn-auth" disabled>Google ile izin ver</button>
+      <button id="btn-signout" disabled>Çıkış</button>
+      <button id="btn-list" disabled>Drive dosyalarını listele</button>
     </div>
 
-    <textarea id="editor" placeholder="İstersen buraya yapıştır; istersen yukarıdan Drive dosyalarını seç."></textarea>
-    <div class="status" id="status">Hazır.</div>
+    <h3>Sonuç</h3>
+    <ul id="files"></ul>
 
-    <p class="note">
-      Not: Eğer yetki sorunu alırsan Google Cloud’da API key’ine <code>https://ferytgj.github.io/*</code> referrer izni ver.
-    </p>
+    <h3>Hata/Günlük</h3>
+    <pre id="log" class="err"></pre>
+
+    <p class="muted">Şuradan aç: <code>http://localhost:5000</code> veya <code>https://ferytgj.github.io/RomanSuite/</code></p>
   </div>
 
-<script>
-/* ----- Kimlik bilgileri (seninkiler) ----- */
-const CLIENT_ID = "986010688372-lpvkmv2a60em7ut4poc4kj41eadkg10s.apps.googleusercontent.com";
-const API_KEY   = "AIzaSyCl3bPUDrf06QrXtSSMQZg63O_HYFUiLy4";
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Google APIs Client (gapi) -->
+  <script src="https://apis.google.com/js/api.js"></script>
 
-/* ----- Ayarlar ----- */
-const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
-const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
+  <script>
+    // ✅ Senin değerlerinle dolduruldu
+    const CLIENT_ID = "986010688372-lpvkmv2a60em7ut4poc4kj41eadkg10s.apps.googleusercontent.com";
+    const API_KEY   = "AIzaSyCl3bPUDrf06QrXtSSMQZg63O_HYFUiLy4";
 
-/* ----- Durum ----- */
-let tokenClient = null;
-let accessToken = null;
-let mergedText = "";
-let outputFileName = "roman";
+    // Sadece okuma yetkisi
+    const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
+    const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 
-const $ = s => document.querySelector(s);
-const editor = $("#editor");
-const btnPick = $("#pickDrive");
-const btnDocx = $("#toDocx");
-const btnClear = $("#clear");
-const statusEl = $("#status");
-const show = (m)=> statusEl.textContent = m;
+    let tokenClient;
+    let gapiInited = false;
+    let gisInited  = false;
 
-/* ----- Başlat ----- */
-window.addEventListener("load", async () => {
-  try {
-    await new Promise(res => gapi.load('client:picker', res));
-    await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
+    const el = (id)=>document.getElementById(id);
+    const setStatus = (msg, ok)=>{ const s=el("status"); s.textContent=msg; s.className = ok ? "ok" : "muted"; };
+    const log = (msg)=>{ el("log").textContent = (el("log").textContent + "\n" + msg).trim(); };
 
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: (resp) => { accessToken = resp.access_token; openPicker(); }
-    });
-
-    show("Hazır. Drive’dan Bul ile dosya seçebilirsin.");
-  } catch (e) {
-    console.error(e);
-    show("Başlatma hatası: API Key / Client ID ayarını kontrol et.");
-  }
-
-  btnPick.addEventListener("click", () => {
-    if (!accessToken) tokenClient.requestAccessToken({ prompt: 'consent' });
-    else openPicker();
-  });
-
-  btnDocx.addEventListener("click", async () => {
-    const text = (editor.value || mergedText || "").trim();
-    if (!text){ show("Önce metin ekle ya da Drive’dan seç."); return; }
-    btnDocx.disabled = true;
-    show("DOCX hazırlanıyor…");
-    try {
-      await buildAndDownloadDocx(text, outputFileName);
-      show("DOCX indirildi.");
-    } catch (e) {
-      console.error(e);
-      show("DOCX oluşturulamadı (konsolu kontrol et).");
-    } finally { btnDocx.disabled = false; }
-  });
-
-  btnClear.addEventListener("click", ()=>{
-    editor.value = ""; mergedText = ""; btnDocx.disabled = true; show("Temizlendi.");
-  });
-
-  editor.addEventListener("input", ()=>{
-    btnDocx.disabled = editor.value.trim().length === 0;
-  });
-});
-
-/* ----- Picker ----- */
-function openPicker() {
-  const view = new google.picker.DocsView()
-    .setIncludeFolders(false)
-    .setSelectFolderEnabled(false)
-    .setMimeTypes("application/vnd.google-apps.document,text/plain,text/markdown");
-
-  const picker = new google.picker.PickerBuilder()
-    .setDeveloperKey(API_KEY)
-    .setOAuthToken(accessToken)
-    .addView(view)
-    .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-    .setCallback(onPicked)
-    .build();
-
-  picker.setVisible(true);
-}
-
-async function onPicked(data){
-  if (data.action !== google.picker.Action.PICKED) return;
-  const docs = data.docs || [];
-  if (!docs.length) return;
-
-  // İlk seçilen dosyanın adı → çıktı adı
-  outputFileName = (docs[0].name || "roman").replace(/\.[^.]+$/, "");
-  show("Dosyalar indiriliyor…");
-  btnDocx.disabled = true;
-
-  const parts = [];
-  for (let i=0;i<docs.length;i++){
-    const {id,name,mimeType} = docs[i];
-    try {
-      const t = await fetchTextFromDrive(id, mimeType);
-      parts.push(`# ${name}\n\n${t}\n\n---\n\n`);
-    } catch (e) {
-      console.error(e);
-      parts.push(`# ${name}\n\n(İndirilemedi / desteklenmiyor)\n\n---\n\n`);
+    function gapiLoaded() {
+      gapi.load('client', async () => {
+        try {
+          await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
+          gapiInited = true;
+          maybeEnableButtons();
+          setStatus("GAPI hazır.", true);
+        } catch (e) { log("gapi init hatası: " + (e.message || e)); }
+      });
     }
-  }
-  mergedText = parts.join("").trim();
-  editor.value = mergedText;
-  btnDocx.disabled = !mergedText.length;
-  show("Seçilenler birleştirildi.");
-}
-
-/* ----- Drive’dan metin çek ----- */
-async function fetchTextFromDrive(fileId, mime) {
-  if (mime === "application/vnd.google-apps.document") {
-    const resp = await gapi.client.drive.files.export({ fileId, mimeType: "text/plain" });
-    return resp.body || "";
-  }
-  if (mime && mime.startsWith("text/")) {
-    const resp = await gapi.client.drive.files.get({ fileId, alt: "media" });
-    return resp.body || "";
-  }
-  // mimeType boş gelebilirse fallback: export düz metin dene
-  const resp = await gapi.client.drive.files.export({ fileId, mimeType: "text/plain" });
-  return resp.body || "";
-}
-
-/* ----- DOCX üret (roman biçimi) ----- */
-async function buildAndDownloadDocx(text, fileNameBase="roman"){
-  const { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Footer, PageNumber, PageNumberFormat } = docx;
-
-  const chunks = text.split(/\n---\n/).map(s=>s.trim()).filter(Boolean);
-
-  const normalPara = (t)=> new Paragraph({
-    children: [ new TextRun({ text: t }) ],
-    spacing: { line: 360 },                 // 1.5 satır
-    indent: { firstLine: 720 },             // ~1.27 cm
-  });
-
-  const heading = (t)=> new Paragraph({
-    children: [ new TextRun({ text: t, bold: true }) ],
-    spacing: { after: 240 },
-    heading: HeadingLevel.HEADING_1,
-    alignment: AlignmentType.LEFT,
-  });
-
-  const paras = [];
-  for (const chunk of chunks){
-    const lines = chunk.split(/\r?\n/);
-    if (lines[0]?.startsWith("# ")) {
-      paras.push(heading(lines[0].replace(/^#\s*/, "")));
-      lines.shift();
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        prompt: '',
+        callback: (resp) => {
+          if (resp.error) { log(JSON.stringify(resp, null, 2)); return; }
+          setStatus("Giriş başarılı, erişim verildi.", true);
+          el("btn-list").disabled = false;
+          el("btn-signout").disabled = false;
+        },
+      });
+      gisInited = true;
+      maybeEnableButtons();
+      setStatus("GIS hazır.", true);
     }
-    const body = lines.join("\n").split(/\n{2,}/);
-    for (const p of body){
-      const clean = p.replace(/\n/g," ").trim();
-      if (clean) paras.push(normalPara(clean));
+    function maybeEnableButtons() {
+      if (gapiInited && gisInited) el("btn-auth").disabled = false;
     }
-    paras.push(new Paragraph({ children:[new TextRun("")], pageBreakBefore: true }));
-  }
-  if (paras.length && paras[paras.length-1].options.pageBreakBefore) paras.pop();
 
-  const footer = new Footer({
-    children: [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [ new TextRun({ children: [ PageNumber.CURRENT ] }) ],
-      })
-    ]
-  });
+    el("btn-auth").onclick = () => {
+      el("log").textContent = "";
+      tokenClient.requestAccessToken({
+        prompt: google.accounts.oauth2.hasGrantedAllScopes ? '' : 'consent'
+      });
+    };
 
-  const doc = new Document({
-    creator: "RomanSuite",
-    title: fileNameBase,
-    styles: {
-      default: {
-        document: {
-          run: { font: "Times New Roman", size: 24 }, // 12pt
-          paragraph: { spacing: { line: 360 } }
+    el("btn-signout").onclick = () => {
+      const token = gapi.client.getToken();
+      if (token) {
+        google.accounts.oauth2.revoke(token.access_token, () => {
+          gapi.client.setToken('');
+          setStatus("Çıkış yapıldı.", false);
+          el("btn-list").disabled = true;
+          el("btn-signout").disabled = true;
+        });
+      }
+    };
+
+    el("btn-list").onclick = async () => {
+      try {
+        const res = await gapi.client.drive.files.list({
+          pageSize: 10,
+          fields: "files(id, name, mimeType, modifiedTime)"
+        });
+        const files = res.result.files || [];
+        const ul = el("files");
+        ul.innerHTML = "";
+        if (!files.length) {
+          ul.innerHTML = "<li>Dosya bulunamadı.</li>";
+        } else {
+          files.forEach(f => {
+            const li = document.createElement("li");
+            li.textContent = `${f.name} — ${f.mimeType} — ${new Date(f.modifiedTime).toLocaleString()}`;
+            ul.appendChild(li);
+          });
         }
+      } catch (e) {
+        log("Drive isteği hatası:\n" + (e.result?.error?.message || e.message || e));
       }
-    },
-    sections: [
-      {
-        properties: { page: { pageNumbers: { start: 1, formatType: PageNumberFormat.DECIMAL } } },
-        footers: { default: footer },
-        children: paras.length ? paras : [ normalPara(text || "") ],
-      }
-    ]
-  });
+    };
 
-  const blob = await Packer.toBlob(doc);
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${fileNameBase || "roman"}.docx`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-</script>
+    // Bazı ortamlarda onload tetiklenmezse elle çağır
+    if (window.gapi && window.gapi.load) gapiLoaded();
+    if (window.google && window.google.accounts) gisLoaded();
+  </script>
+
+  <!-- onload fallback (bazı tarayıcılarda güvenli) -->
+  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
-      </html>
+</html>
