@@ -1,407 +1,256 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RomanSuite – Çoklu Birleştir • DOCX + Sayfa No</title>
-  <link rel="icon" href="data:," />
+  <title>RomanSuite – Drive’dan Birleştir & DOCX İndir</title>
   <style>
-    :root{
-      --bg:#0f172a;--card:#111827;--ink:#e5e7eb;--mut:#9ca3af;--pri:#10b981;--blue:#0ea5e9;--red:#ef4444;--line:#1f2937
-    }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-    header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-    h1{margin:0;font-size:20px;font-weight:800;display:flex;align-items:center;gap:8px}
-    main{max-width:1000px;margin:0 auto;padding:16px}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .input{flex:1;min-width:240px;background:#0b1220;border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px 14px;outline:none}
-    button{border:0;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer}
-    .primary{background:var(--pri);color:#052e1b}
-    .blue{background:var(--blue);color:#042c3a}
-    .ghost{background:#0b1220;border:1px solid var(--line);color:#cfe8db}
-    .muted{background:#0b1220;border:1px solid var(--line);color:var(--mut)}
-    .danger{background:#2a0b0b;border:1px solid #3f1a1a;color:#ffb4b4}
-    .grid{display:grid;grid-template-columns:1fr;gap:12px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
-    .list{display:flex;flex-direction:column;gap:8px;max-height:240px;overflow:auto}
-    .item{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#0b1220;border:1px solid var(--line);border-radius:12px;padding:10px}
-    .item .meta{font-size:12px;color:var(--mut)}
-    .item .title{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .ctl{display:flex;gap:6px}
-    textarea{width:100%;min-height:48vh;background:#0b1220;border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:16px 14px;line-height:1.6;font-size:18px;resize:vertical;outline:none}
-    .hint{color:var(--mut);font-size:13px;margin-top:10px}
-    .sp{height:8px}
+    :root{--c:#1a73e8;--bg:#0b0f14;--fg:#e9eef6;--mut:#9bb0c9;--card:#111824;--btn:#1f2937}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:960px;margin:24px auto;padding:0 16px}
+    header{display:flex;align-items:center;gap:12px;margin:8px 0 10px}
+    header h1{font-size:20px;margin:0}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px}
+    .btn{appearance:none;border:1px solid #2a3647;background:var(--btn);color:var(--fg);
+         padding:10px 14px;border-radius:10px;cursor:pointer}
+    .btn.primary{background:var(--c);border-color:var(--c)}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .note{color:var(--mut);font-size:13px}
+    textarea#editor{width:100%;min-height:48vh;background:var(--card);color:var(--fg);
+      border:1px solid #223047;border-radius:12px;padding:14px;box-sizing:border-box;resize:vertical}
+    .status{margin-top:8px;font-size:13px;color:#b6c4d8}
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <!-- Google APIs (Client + Picker) -->
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- DOCX üretimi için güvenilir kütüphane -->
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
 </head>
 <body>
-  <header>
-    <h1>📚 RomanSuite</h1>
-    <div class="row" style="gap:8px">
-      <button id="saveDocx" class="primary">⬇ Tek DOCX İndir</button>
-      <button id="clearAll" class="muted" title="Tüm alanları temizle">Temizle</button>
+  <div class="wrap">
+    <header>
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v16H5z" stroke="#7aa2ff" stroke-width="1.5"/><path d="M8 7h8M8 10h8M8 13h5" stroke="#7aa2ff" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <h1>RomanSuite</h1>
+      <span class="note">Drive’dan çoklu dosya → tek DOCX (roman biçimi)</span>
+    </header>
+
+    <div class="bar">
+      <button id="pickDrive" class="btn">Drive’dan Bul (Çoklu)</button>
+      <button id="toDocx" class="btn primary" disabled>DOCX indir</button>
+      <button id="clear" class="btn">Temizle</button>
     </div>
-  </header>
 
-  <main class="grid">
-    <!-- 1) Google linkleri yönet -->
-    <section class="card">
-      <div class="row">
-        <input id="driveUrl" class="input" placeholder="Google Docs veya herkese açık .txt bağlantısını yapıştırın…" />
-        <button id="addLink" class="blue">Ekle</button>
-        <button id="fetchAll" class="ghost">Hepsini Yükle</button>
-      </div>
-      <div id="fetchStatus" class="hint">Sınırsız bağlantı ekleyebilirsin. Google Docs için paylaşım <b>“Bağlantıya sahip herkes görüntüleyebilir”</b> olmalı.</div>
-      <div class="sp"></div>
-      <div id="links" class="list" aria-live="polite"></div>
-    </section>
+    <textarea id="editor" placeholder="İstersen buraya yapıştır; istersen yukarıdan Drive dosyalarını seç."></textarea>
+    <div class="status" id="status">Hazır.</div>
 
-    <!-- 2) Metin çalışma alanı -->
-    <section class="card">
-      <div class="row" style="gap:8px;margin-bottom:8px">
-        <button id="toNovel" class="primary">Roman Formatına Çevir</button>
-        <button id="detectHeads" class="ghost">Başlıkları Algıla</button>
-        <button id="appendSep" class="ghost" title="Manuel bölüm ayırıcı ekle (Sayfa sonu)">Sayfa Sonu Ekle</button>
-      </div>
-      <textarea id="editor" placeholder="Metni buraya yapıştır.
-Boş satır = yeni paragraf.
-Shift+Enter = satır sonu."></textarea>
-      <div class="hint">İpuçları: Paragrafları boş satırla ayır. “Roman Formatına Çevir” akıllı tırnak, tire ve üç nokta düzeltmesi yapar. İndirme adı <b>ilk başlıktan</b> alınır. Sayfa altbilgisine otomatik “Sayfa X / Y” eklenir.</div>
-    </section>
-  </main>
+    <p class="note">
+      Not: Eğer yetki sorunu alırsan Google Cloud’da API key’ine <code>https://ferytgj.github.io/*</code> referrer izni ver.
+    </p>
+  </div>
 
-  <script>
-    const $ = s => document.querySelector(s);
-    const elLinks = $("#links");
-    const statusEl = $("#fetchStatus");
-    let linkList = []; // {id, kind, url, title?, text?}
+<script>
+/* ----- Kimlik bilgileri (seninkiler) ----- */
+const CLIENT_ID = "986010688372-lpvkmv2a60em7ut4poc4kj41eadkg10s.apps.googleusercontent.com";
+const API_KEY   = "AIzaSyCl3bPUDrf06QrXtSSMQZg63O_HYFUiLy4";
 
-    // --- Metin yardımcıları ---
-    const smarten = t => t
-      .replace(/\"([^\"]*)\"/g, '“$1”')
-      .replace(/\'([^\']*)\'/g, '‘$1’')
-      .replace(/\.{3,}/g, '…')
-      .replace(/\s+-\s+/g, ' — ')
-      .replace(/--/g, '—');
+/* ----- Ayarlar ----- */
+const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
 
-    const toNovelFormat = (raw) => {
-      const parts = raw.replace(/\r\n/g,"\n").trim().split(/\n{2,}/);
-      return parts.map(p=>{
-        p = p.replace(/[ \t]+\n/g, '\n');
-        p = p.replace(/\n(?!\n)/g, ' ');
-        p = smarten(p.trim());
-        return p;
-      }).join("\n\n");
-    };
+/* ----- Durum ----- */
+let tokenClient = null;
+let accessToken = null;
+let mergedText = "";
+let outputFileName = "roman";
 
-    const detectHeads = (raw) => {
-      const lines = raw.split(/\r?\n/);
-      return lines.map((ln)=>{
-        const s = ln.trim();
-        if(!s) return "";
-        const words = s.split(/\s+/).length;
-        const isAllCaps = s === s.toUpperCase() && /[A-ZÇĞİÖŞÜ]/.test(s);
-        if (isAllCaps || words <= 5) return s + "\n";
-        return s;
-      }).join("\n");
-    };
+const $ = s => document.querySelector(s);
+const editor = $("#editor");
+const btnPick = $("#pickDrive");
+const btnDocx = $("#toDocx");
+const btnClear = $("#clear");
+const statusEl = $("#status");
+const show = (m)=> statusEl.textContent = m;
 
-    // --- Google link çözümleyici + çekici (API'siz) ---
-    function parseGoogleUrl(u){
-      try{
-        const url = new URL(u);
-        const h = url.hostname;
-        const p = url.pathname;
-        const qid = url.searchParams.get("id");
-        const mDocs = p.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
-        if (h.includes("docs.google.") && mDocs) return { kind:"gdocs", id:mDocs[1] };
-        const mDrive = p.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-        if (h.includes("drive.google.") && mDrive) return { kind:"gdrive", id:mDrive[1] };
-        if (h.includes("drive.google.") && qid) return { kind:"gdrive", id: qid };
-      }catch(e){}
-      return null;
-    }
+/* ----- Başlat ----- */
+window.addEventListener("load", async () => {
+  try {
+    await new Promise(res => gapi.load('client:picker', res));
+    await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
 
-    async function fetchTextFromPublic(url){
-      const meta = parseGoogleUrl(url);
-      if(!meta) throw new Error("Bağlantı çözümlenemedi. Google Docs veya herkese açık .txt verin.");
-      let tryUrls = [];
-      if (meta.kind === "gdocs") {
-        tryUrls.push(`https://docs.google.com/document/d/${meta.id}/export?format=txt`);
-        tryUrls.push(`https://r.jina.ai/http://docs.google.com/document/d/${meta.id}/export?format=txt`);
-      } else {
-        tryUrls.push(`https://drive.google.com/uc?export=download&id=${meta.id}`);
-        tryUrls.push(`https://r.jina.ai/http://drive.google.com/uc?export=download&id=${meta.id}`);
-      }
-      let lastErr;
-      for(const turl of tryUrls){
-        try{
-          const r = await fetch(turl);
-          if(!r.ok) throw new Error("HTTP " + r.status);
-          const ct = (r.headers.get("content-type")||"").toLowerCase();
-          if (!/text|plain|utf-8|json/.test(ct) && !turl.includes("r.jina.ai"))
-            throw new Error("Bu dosya metin değil. Lütfen Google Docs linki ya da .txt verin.");
-          const txt = await r.text();
-          return txt;
-        }catch(e){ lastErr = e; }
-      }
-      throw lastErr || new Error("İçerik alınamadı.");
-    }
-
-    // --- Link listesi arayüzü ---
-    function renderLinks(){
-      if (!linkList.length){ elLinks.innerHTML = '<div class="hint">Henüz bağlantı yok.</div>'; return; }
-      elLinks.innerHTML = "";
-      linkList.forEach((it, idx)=>{
-        const div = document.createElement("div");
-        div.className = "item";
-        div.innerHTML = `
-          <div>
-            <div class="title">${it.title ? it.title : it.url}</div>
-            <div class="meta">${it.text ? '✓ Yüklendi' : 'Yüklenmedi'} • ${it.kind.toUpperCase()}</div>
-          </div>
-          <div class="ctl">
-            <button class="ghost" data-act="up" data-i="${idx}">⬆</button>
-            <button class="ghost" data-act="down" data-i="${idx}">⬇</button>
-            <button class="ghost" data-act="load" data-i="${idx}">Yükle</button>
-            <button class="danger" data-act="del" data-i="${idx}">Sil</button>
-          </div>
-        `;
-        elLinks.appendChild(div);
-      });
-      elLinks.querySelectorAll("button").forEach(btn=>{
-        const act = btn.dataset.act, i = +btn.dataset.i;
-        btn.onclick = async ()=>{
-          if (act==="up" && i>0){ [linkList[i-1],linkList[i]]=[linkList[i],linkList[i-1]]; renderLinks(); }
-          if (act==="down" && i<linkList.length-1){ [linkList[i+1],linkList[i]]=[linkList[i],linkList[i+1]]; renderLinks(); }
-          if (act==="del"){ linkList.splice(i,1); renderLinks(); }
-          if (act==="load"){
-            statusEl.textContent = "Yükleniyor…";
-            try{
-              const txt = await fetchTextFromPublic(linkList[i].url);
-              linkList[i].text = txt.trim();
-              linkList[i].title = (txt.split(/\r?\n/).find(l=>l.trim())||"Belge").trim();
-              statusEl.textContent = "Yüklendi.";
-              renderLinks();
-            }catch(e){ statusEl.textContent = "Hata: "+(e?.message||"Alınamadı"); }
-          }
-        };
-      });
-    }
-
-    $("#addLink").addEventListener("click", ()=>{
-      const u = $("#driveUrl").value.trim();
-      if(!u) return;
-      const meta = parseGoogleUrl(u);
-      if(!meta){ statusEl.textContent = "Geçersiz Google Docs/Drive linki."; return; }
-      linkList.push({id: meta.id, kind: meta.kind, url: u});
-      $("#driveUrl").value = "";
-      renderLinks();
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: (resp) => { accessToken = resp.access_token; openPicker(); }
     });
 
-    $("#fetchAll").addEventListener("click", async ()=>{
-      if(!linkList.length){ statusEl.textContent="Liste boş."; return; }
-      statusEl.textContent = "Tüm bağlantılar yükleniyor…";
-      for (let i=0;i<linkList.length;i++){
-        if (linkList[i].text) continue;
-        try{
-          const txt = await fetchTextFromPublic(linkList[i].url);
-          linkList[i].text = txt.trim();
-          linkList[i].title = (txt.split(/\r?\n/).find(l=>l.trim())||"Belge").trim();
-          renderLinks();
-        }catch(e){ /* devam */ }
-      }
-      statusEl.textContent = "Tamamlandı. Yüklü olanlar ✓";
-    });
+    show("Hazır. Drive’dan Bul ile dosya seçebilirsin.");
+  } catch (e) {
+    console.error(e);
+    show("Başlatma hatası: API Key / Client ID ayarını kontrol et.");
+  }
 
-    // --- DOCX üretici (footer + sayfa numarası + birleştirme) ---
-    function escapeXml(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  btnPick.addEventListener("click", () => {
+    if (!accessToken) tokenClient.requestAccessToken({ prompt: 'consent' });
+    else openPicker();
+  });
 
-    function makeParaFromTextBlock(block){
-      // blok içi satırları <w:br/> ile, paragrafları boş satırla ayır
-      const paras = block.split(/\n{2,}/).map(p=>{
-        const runs = escapeXml(p).split(/\n/).map(line =>
-          `<w:r><w:t xml:space="preserve">${line}</w:t></w:r>`
-        ).join(`<w:r><w:br/></w:r>`);
-        return `<w:p>${runs}</w:p>`;
-      }).join("");
-      return paras || `<w:p/>`;
+  btnDocx.addEventListener("click", async () => {
+    const text = (editor.value || mergedText || "").trim();
+    if (!text){ show("Önce metin ekle ya da Drive’dan seç."); return; }
+    btnDocx.disabled = true;
+    show("DOCX hazırlanıyor…");
+    try {
+      await buildAndDownloadDocx(text, outputFileName);
+      show("DOCX indirildi.");
+    } catch (e) {
+      console.error(e);
+      show("DOCX oluşturulamadı (konsolu kontrol et).");
+    } finally { btnDocx.disabled = false; }
+  });
+
+  btnClear.addEventListener("click", ()=>{
+    editor.value = ""; mergedText = ""; btnDocx.disabled = true; show("Temizlendi.");
+  });
+
+  editor.addEventListener("input", ()=>{
+    btnDocx.disabled = editor.value.trim().length === 0;
+  });
+});
+
+/* ----- Picker ----- */
+function openPicker() {
+  const view = new google.picker.DocsView()
+    .setIncludeFolders(false)
+    .setSelectFolderEnabled(false)
+    .setMimeTypes("application/vnd.google-apps.document,text/plain,text/markdown");
+
+  const picker = new google.picker.PickerBuilder()
+    .setDeveloperKey(API_KEY)
+    .setOAuthToken(accessToken)
+    .addView(view)
+    .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+    .setCallback(onPicked)
+    .build();
+
+  picker.setVisible(true);
+}
+
+async function onPicked(data){
+  if (data.action !== google.picker.Action.PICKED) return;
+  const docs = data.docs || [];
+  if (!docs.length) return;
+
+  // İlk seçilen dosyanın adı → çıktı adı
+  outputFileName = (docs[0].name || "roman").replace(/\.[^.]+$/, "");
+  show("Dosyalar indiriliyor…");
+  btnDocx.disabled = true;
+
+  const parts = [];
+  for (let i=0;i<docs.length;i++){
+    const {id,name,mimeType} = docs[i];
+    try {
+      const t = await fetchTextFromDrive(id, mimeType);
+      parts.push(`# ${name}\n\n${t}\n\n---\n\n`);
+    } catch (e) {
+      console.error(e);
+      parts.push(`# ${name}\n\n(İndirilemedi / desteklenmiyor)\n\n---\n\n`);
     }
+  }
+  mergedText = parts.join("").trim();
+  editor.value = mergedText;
+  btnDocx.disabled = !mergedText.length;
+  show("Seçilenler birleştirildi.");
+}
 
-    function pageBreakPara(){
-      return `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+/* ----- Drive’dan metin çek ----- */
+async function fetchTextFromDrive(fileId, mime) {
+  if (mime === "application/vnd.google-apps.document") {
+    const resp = await gapi.client.drive.files.export({ fileId, mimeType: "text/plain" });
+    return resp.body || "";
+  }
+  if (mime && mime.startsWith("text/")) {
+    const resp = await gapi.client.drive.files.get({ fileId, alt: "media" });
+    return resp.body || "";
+  }
+  // mimeType boş gelebilirse fallback: export düz metin dene
+  const resp = await gapi.client.drive.files.export({ fileId, mimeType: "text/plain" });
+  return resp.body || "";
+}
+
+/* ----- DOCX üret (roman biçimi) ----- */
+async function buildAndDownloadDocx(text, fileNameBase="roman"){
+  const { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Footer, PageNumber, PageNumberFormat } = docx;
+
+  const chunks = text.split(/\n---\n/).map(s=>s.trim()).filter(Boolean);
+
+  const normalPara = (t)=> new Paragraph({
+    children: [ new TextRun({ text: t }) ],
+    spacing: { line: 360 },                 // 1.5 satır
+    indent: { firstLine: 720 },             // ~1.27 cm
+  });
+
+  const heading = (t)=> new Paragraph({
+    children: [ new TextRun({ text: t, bold: true }) ],
+    spacing: { after: 240 },
+    heading: HeadingLevel.HEADING_1,
+    alignment: AlignmentType.LEFT,
+  });
+
+  const paras = [];
+  for (const chunk of chunks){
+    const lines = chunk.split(/\r?\n/);
+    if (lines[0]?.startsWith("# ")) {
+      paras.push(heading(lines[0].replace(/^#\s*/, "")));
+      lines.shift();
     }
-
-    async function buildDocxCombined(allTextBlocks){
-      const zip = new JSZip();
-
-      // 1) document.xml (paragraflar + sayfa ayırıcılar + footer referansı)
-      const bodyParts = [];
-      allTextBlocks.forEach((blk, i)=>{
-        bodyParts.push(makeParaFromTextBlock(blk));
-        if (i !== allTextBlocks.length-1) bodyParts.push(pageBreakPara());
-      });
-      const bodyXml = bodyParts.join("");
-
-      const documentXml =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
- xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
- xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
- mc:Ignorable="w14 wp14">
-  <w:body>
-    ${bodyXml}
-    <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
-      <w:pgNumType w:start="1"/>
-      <w:footerReference w:type="default" r:id="rId2"/>
-    </w:sectPr>
-  </w:body>
-</w:document>`;
-
-      // 2) styles.xml (dil TR + satır aralığı)
-      const stylesXml =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
-    <w:name w:val="Normal"/>
-    <w:qFormat/>
-    <w:rPr><w:lang w:val="tr-TR"/></w:rPr>
-    <w:pPr><w:spacing w:after="220" w:line="360" w:lineRule="auto"/></w:pPr>
-  </w:style>
-</w:styles>`;
-
-      // 3) footer1.xml (Sayfa X / Y)
-      const footerXml =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:p>
-    <w:pPr><w:jc w:val="center"/></w:pPr>
-    <w:r><w:t>Sayfa </w:t></w:r>
-    <w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple>
-    <w:r><w:t> / </w:t></w:r>
-    <w:fldSimple w:instr=" NUMPAGES "><w:r><w:t>1</w:t></w:r></w:fldSimple>
-  </w:p>
-</w:ftr>`;
-
-      // 4) root _rels/.rels
-      const rootRels =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-
-      // 5) word/_rels/document.xml.rels (styles + footer)
-      const docRels =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
-</Relationships>`;
-
-      // 6) [Content_Types].xml
-      const contentTypes =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
-</Types>`;
-
-      // Zip yapısı
-      zip.folder("_rels").file(".rels", rootRels);
-      const word = zip.folder("word");
-      word.file("document.xml", documentXml);
-      word.file("styles.xml", stylesXml);
-      word.file("footer1.xml", footerXml);
-      zip.folder("word").folder("_rels").file("document.xml.rels", docRels);
-      zip.file("[Content_Types].xml", contentTypes);
-
-      return await zip.generateAsync({ type:"arraybuffer" });
+    const body = lines.join("\n").split(/\n{2,}/);
+    for (const p of body){
+      const clean = p.replace(/\n/g," ").trim();
+      if (clean) paras.push(normalPara(clean));
     }
+    paras.push(new Paragraph({ children:[new TextRun("")], pageBreakBefore: true }));
+  }
+  if (paras.length && paras[paras.length-1].options.pageBreakBefore) paras.pop();
 
-    // --- UI olayları ---
-    $("#toNovel").addEventListener("click", ()=>{
-      const v = $("#editor").value;
-      $("#editor").value = toNovelFormat(v);
-    });
+  const footer = new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [ new TextRun({ children: [ PageNumber.CURRENT ] }) ],
+      })
+    ]
+  });
 
-    $("#detectHeads").addEventListener("click", ()=>{
-      const v = $("#editor").value;
-      $("#editor").value = detectHeads(v);
-    });
-
-    $("#appendSep").addEventListener("click", ()=>{
-      const v = $("#editor").value;
-      const sep = (v.trim()? "\n\n" : "") + "----- [SAYFA SONU] -----\n\n";
-      $("#editor").value = v + sep;
-    });
-
-    $("#clearAll").addEventListener("click", ()=>{
-      $("#editor").value = "";
-      linkList = [];
-      renderLinks();
-      statusEl.textContent = "Temizlendi.";
-    });
-
-    $("#saveDocx").addEventListener("click", async ()=>{
-      // 1) Birleştirilecek blokları hazırla:
-      const blocks = [];
-
-      // a) Listeden yüklenmiş olanlar (sırayla)
-      linkList.forEach(it=>{
-        if (it.text && it.text.trim()){
-          blocks.push(toNovelFormat(it.text.trim()));
+  const doc = new Document({
+    creator: "RomanSuite",
+    title: fileNameBase,
+    styles: {
+      default: {
+        document: {
+          run: { font: "Times New Roman", size: 24 }, // 12pt
+          paragraph: { spacing: { line: 360 } }
         }
-      });
+      }
+    },
+    sections: [
+      {
+        properties: { page: { pageNumbers: { start: 1, formatType: PageNumberFormat.DECIMAL } } },
+        footers: { default: footer },
+        children: paras.length ? paras : [ normalPara(text || "") ],
+      }
+    ]
+  });
 
-      // b) Ekrandaki manuel metin
-      const manual = $("#editor").value.trim();
-      if (manual) blocks.push(manual);
-
-      if (!blocks.length){ alert("İndirilecek içerik yok. Önce metin ekle veya link yükle."); return; }
-
-      // 2) Dosya adı: ilk başlık
-      let firstLine = (blocks[0].split(/\r?\n/).find(l=>l.trim())||"roman").trim();
-      firstLine = firstLine.replace(/[<>:"/\\|?*\x00-\x1F]/g, "");
-      if (!firstLine) firstLine = "roman";
-
-      // 3) Bloklar arasına sayfa sonu eklenecek; özel işaretleyici varsa da sayfa sonu olarak kabul et
-      const expanded = [];
-      blocks.forEach((b,i)=>{
-        const parts = b.split(/^-{2,}\s*\[SAYFA SONU\]\s*-{2,}$/m); // manuel ayırıcı
-        parts.forEach((p,j)=>{
-          if (p.trim()) expanded.push(p.trim());
-          if (j < parts.length-1) expanded.push("\f"); // sayfa sonu işareti
-        });
-        if (i < blocks.length-1) expanded.push("\f");
-      });
-
-      // 4) DOCX oluştur
-      const ab = await buildDocxCombined(expanded);
-      const blob = new Blob([ab], {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = firstLine + ".docx";
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-      a.remove();
-    });
-
-    // Odak
-    window.addEventListener("load", ()=>$("#editor").focus(), { once:true });
-
-    // İlk render
-    renderLinks();
-  </script>
+  const blob = await Packer.toBlob(doc);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${fileNameBase || "roman"}.docx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+</script>
 </body>
-  </html>
+      </html>
