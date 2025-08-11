@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RomanSuite – Mobil</title>
+<link rel="icon" href="data:,"/>
+<style>
+  :root{--bg:#0f172a;--card:#111827;--muted:#6b7280;--fg:#e5e7eb;--accent:#22c55e;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;background:var(--bg);color:var(--fg)}
+  header{padding:14px 16px;border-bottom:1px solid #1f2937;display:flex;gap:10px;align-items:center;justify-content:space-between}
+  header h1{font-size:18px;margin:0}
+  main{max-width:900px;margin:0 auto;padding:14px}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  button,.btn{appearance:none;border:0;border-radius:12px;padding:10px 12px;background:#1e293b;color:#fff}
+  button.primary{background:var(--accent);color:#04210f;font-weight:700}
+  button:active{opacity:.85}
+  textarea{width:100%;height:55vh;min-height:260px;resize:vertical;border-radius:12px;border:1px solid #1f2937;background:#0b1220;color:var(--fg);padding:12px;line-height:1.5}
+  .hint{color:var(--muted);font-size:12px;margin:8px 2px}
+  .pill{padding:8px 10px;border-radius:999px;background:#0b1220;border:1px solid #1f2937}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  input[type=file]{display:none}
+  label.file{cursor:pointer}
+  .right{margin-left:auto}
+  .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111827;color:#e5e7eb;border:1px solid #1f2937;border-radius:12px;padding:10px 12px;font-size:14px;opacity:0;transition:.25s}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>📖 RomanSuite</h1>
+  <div class="row">
+    <label class="btn pill file">
+      📂 Dosya Aç
+      <input id="fileOpen" type="file" accept=".txt,.md,.markdown,.docx,.doc" />
+    </label>
+    <button id="saveDocx" class="btn pill">⬇️ DOCX İndir</button>
+  </div>
+</header>
+
+<main>
+  <div class="bar">
+    <button id="toNovel" class="primary">Roman Formatına Çevir</button>
+    <button id="detectHeadings">Başlıkları Algıla</button>
+    <button id="clean">Temizle</button>
+    <span class="pill" id="counter">0 karakter</span>
+    <span class="right pill" id="recState">🎙️ Dikte: Kapalı</span>
+  </div>
+
+  <textarea id="editor" placeholder="Metni buraya yapıştır veya mikrofonla dikte et..."></textarea>
+  <div class="hint">
+    İpuçları: Paragrafları boş satırla ayır. “Roman Formatına Çevir” akıllı tırnak, tire→—, üç nokta→… vb. uygular.
+  </div>
+
+  <div class="bar">
+    <button id="tts">🔊 Metni Sesli Oku</button>
+    <button id="recToggle">🎙️ Dikte Başlat/Dur</button>
+    <button id="saveTxt">TXT İndir</button>
+    <button id="copyAll">Kopyala</button>
+  </div>
+</main>
+
+<div id="toast" class="toast">Hazır.</div>
+
+<!-- DOCX için JSZip -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+const $ = sel => document.querySelector(sel);
+const editor = $('#editor'), toast = $('#toast'), counter = $('#counter'), recState = $('#recState');
+
+function show(msg){ toast.textContent = msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1800); }
+function count(){ counter.textContent = (editor.value||'').length + ' karakter'; }
+editor.addEventListener('input', count); count();
+
+/* --- Roman biçimlendirici --- */
+function smarten(text){
+  // normalize line breaks
+  text = text.replace(/\r\n?/g,'\n').replace(/\t/g,'  ');
+  // trim trailing spaces
+  text = text.split('\n').map(l=>l.replace(/\s+$/,'')).join('\n');
+
+  // paragraph split: keep empty line as paragraph break
+  const paras = text
+    .split(/\n{2,}/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p=>{
+      // replace double hyphen & dashes
+      p = p
+        .replace(/(\s|^)--(\s|$)/g,'—')
+        .replace(/ ?-{2,} ?/g,'—');
+      // ellipsis
+      p = p.replace(/\.{3,}/g,'…');
+      // quotes -> smart
+      p = p
+        .replace(/(^|[\s(\[{<])"(?=\S)/g,'$1“')
+        .replace(/"(?=$|[\s)\]}>,;:.!?'»])/g,'”')
+        .replace(/(^|[\s(\[{<])'(?=\S)/g,"$1‘")
+        .replace(/'(?=$|[\s)\]}>,;:.!?»])/g,"’");
+      // fix spaces around punctuation
+      p = p.replace(/\s+([,;:.!?…])/g,'$1').replace(/([—–])\s*/g,'$1 ');
+      return p;
+    });
+
+  // scene breaks: line with *** or --- becomes centered ***
+  for(let i=0;i<paras.length;i++){
+    if(/^\*{3,}$|^-{3,}$/.test(paras[i])) paras[i] = '***';
+  }
+  return paras.join('\n\n');
+}
+
+$('#toNovel').onclick = () => { editor.value = smarten(editor.value); count(); show('Roman formatı uygulandı.'); };
+
+/* --- Başlık algıla: ilk satırı başlık say, büyük harf düzenle --- */
+$('#detectHeadings').onclick = ()=>{
+  let t = editor.value.replace(/\r\n?/g,'\n');
+  const lines = t.split('\n').map(l=>l.trimEnd());
+  if(!lines.length) return;
+  if(lines[0].length>0){
+    const title = lines[0].replace(/\s{2,}/g,' ').trim();
+    lines[0] = '# ' + title.replace(/\b([\p{L}\p{M}]+)/gu,(m)=>m.charAt(0).toUpperCase()+m.slice(1).toLowerCase());
+  }
+  editor.value = lines.join('\n');
+  count(); show('Başlık algılandı (Markdown # Başlık).');
+};
+
+/* --- Temizle --- */
+$('#clean').onclick = ()=>{ editor.value=''; count(); };
+
+/* --- TTS: Tarayıcı metin okuma --- */
+$('#tts').onclick = ()=>{
+  const s = window.speechSynthesis;
+  if(!s){ show('Tarayıcı TTS desteklemiyor.'); return; }
+  s.cancel();
+  const utter = new SpeechSynthesisUtterance(editor.value || 'Metin alanı boş.');
+  utter.lang = 'tr-TR';
+  s.speak(utter);
+};
+
+/* --- Dikte (Speech to Text) --- */
+let rec, recOn=false;
+$('#recToggle').onclick = ()=>{
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!R){ show('Bu cihazda dikte desteklenmiyor.'); return; }
+  if(!recOn){
+    rec = new R(); rec.lang='tr-TR'; rec.continuous=true; rec.interimResults=true;
+    rec.onresult = e=>{
+      let final=''; let interim='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        (e.results[i].isFinal? final: interim) += e.results[i][0].transcript;
+      }
+      editor.value = (editor.value + ' ' + final + interim).trim(); count();
+    };
+    rec.onend = ()=>{ if(recOn) rec.start(); };
+    rec.start(); recOn=true; recState.textContent='🎙️ Dikte: Açık'; show('Dikte başladı.');
+  }else{
+    recOn=false; rec && rec.stop(); recState.textContent='🎙️ Dikte: Kapalı'; show('Dikte durduruldu.');
+  }
+};
+
+/* --- Dosya Aç (.txt/.md önerilir) --- */
+$('#fileOpen').addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0]; if(!f) return;
+  const ext = (f.name.split('.').pop()||'').toLowerCase();
+  if(['txt','md','markdown'].includes(ext)){
+    editor.value = await f.text(); count(); show('Dosya yüklendi.');
+  }else if(ext==='docx'){
+    show('DOCX içe aktarma bu sürümde yok. Lütfen TXT/MD yükleyin.');
+  }else{
+    show('Desteklenmeyen format. TXT/MD deneyin.');
+  }
+});
+
+/* --- TXT indir --- */
+$('#saveTxt').onclick = ()=>{
+  const blob = new Blob([editor.value], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'roman.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  show('TXT indirildi.');
+};
+
+/* --- Kopyala --- */
+$('#copyAll').onclick = async ()=>{
+  try{ await navigator.clipboard.writeText(editor.value||''); show('Panoya kopyalandı.'); }
+  catch(e){ show('Kopyalama izin vermedi.'); }
+};
+
+/* --- DOCX indir (basit paragraf yapısı) --- */
+async function buildDocx(text){
+  const zip = new JSZip();
+  const rels = `<?xml version="1.0" encoding="UTF-8"?>
+  <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  </Relationships>`;
+  zip.file('_rels/.rels', rels);
+
+  const docRels = `<?xml version="1.0" encoding="UTF-8"?>
+  <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+  zip.folder('word').folder('_rels').file('document.xml.rels', docRels);
+
+  const styles = `<?xml version="1.0" encoding="UTF-8"?>
+  <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+    <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+  </w:styles>`;
+  zip.folder('word').file('styles.xml', styles);
+
+  const paragraphs = (text||'')
+    .replace(/\r\n?/g,'\n')
+    .split(/\n{2,}/)
+    .filter(p=>p.trim().length)
+    .map(p=>{
+      p = p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      // line breaks inside a paragraph
+      p = p.split('\n').map(run=>`<w:r><w:t>${run}</w:t></w:r>`).join('<w:br/>');
+      return `<w:p><w:r><w:t xml:space="preserve"></w:t></w:r>${p}</w:p>`;
+    }).join('');
+
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+    <w:body>${paragraphs}<w:sectPr/></w:body>
+  </w:document>`;
+  zip.folder('word').file('document.xml', doc);
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8"?>
+  <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+    <Default Extension="xml" ContentType="application/xml"/>
+    <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+    <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  </Types>`);
+
+  const blob = await zip.generateAsync({type:'blob'});
+  return blob;
+}
+
+$('#saveDocx').onclick = async ()=>{
+  const blob = await buildDocx(editor.value || ' ');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'roman.docx';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  show('DOCX indirildi.');
+};
+</script>
+</body>
+  </html>
