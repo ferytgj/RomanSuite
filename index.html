@@ -2,165 +2,64 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RomanSuite – Mobil</title>
-  <link rel="icon" href="data:," />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RomanSuite – DOCX</title>
   <style>
-    :root{--bg:#0f172a;--card:#111827;--muted:#9ca3af;--acc:#22d3ee;--text:#e5e7eb;}
+    :root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--accent:#22d3ee;--btn:#10b981;}
     *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    header{padding:14px 16px;border-bottom:1px solid #1f2937;background:linear-gradient(180deg,#0b1222,#0f172a)}
-    h1{margin:0;font-size:20px;display:flex;gap:10px;align-items:center}
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-    button{appearance:none;border:1px solid #1f2937;background:#0b1222;color:var(--text);
-      padding:10px 14px;border-radius:10px;font-weight:600}
-    button:disabled{opacity:.45}
-    button.primary{background:#0ea5e9;border-color:#0284c7}
-    .badge{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border-radius:10px;border:1px dashed #2a3344;background:#0b1222}
-    .wrap{padding:14px}
-    .panel{background:var(--card);border:1px solid #1f2937;border-radius:14px}
-    textarea{width:100%;min-height:60vh;background:transparent;color:var(--text);border:0;resize:vertical;
-      padding:14px;font-size:16px;line-height:1.55;outline:none}
-    .hint{color:var(--muted);font-size:12px;margin-top:8px}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--text);}
+    header{padding:14px 16px;border-bottom:1px solid #1f2937;background:rgba(0,0,0,.2); position:sticky;top:0}
+    h1{margin:0;font-size:18px;display:flex;gap:10px;align-items:center}
+    .wrap{max-width:860px;margin:0 auto;padding:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+    button{border:0;border-radius:10px;padding:10px 14px;font-weight:600}
+    .primary{background:var(--btn);color:#04210f}
+    .secondary{background:#0ea5e9;color:#032233}
+    .muted{background:#374151;color:#d1d5db}
+    textarea{width:100%;min-height:60vh;border:1px solid #334155;border-radius:12px;background:#0b1220;color:var(--text);padding:12px;font-size:15px;line-height:1.55;resize:vertical}
+    .hint{color:var(--muted);font-size:12px;margin-top:6px}
+    .badge{display:inline-flex;align-items:center;gap:6px;background:#0b3b44;border:1px solid #155e75;color:#a5f3fc;padding:8px 12px;border-radius:999px;font-weight:700}
+    .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111827;border:1px solid #374151;color:#e5e7eb;padding:10px 14px;border-radius:10px;opacity:0;transition:.25s}
+    .toast.show{opacity:1}
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <!-- DOCX dönüştürme kütüphanesi -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-docx-js/0.4.1/html-docx.js" defer></script>
 </head>
 <body>
-  <header>
-    <h1>📖 RomanSuite <span class="badge" id="status">Hazır</span></h1>
-    <div class="row">
-      <input id="fileInput" type="file" accept=".txt,.md" hidden>
-      <button id="openBtn">📁 Dosya Aç</button>
-      <button id="saveDocx" class="primary" disabled>⬇️ DOCX İndir</button>
-    </div>
+  <header class="wrap">
+    <h1>📖 RomanSuite <span class="badge" id="saveDocx">⬇️ DOCX İndir</span></h1>
   </header>
 
-  <div class="wrap">
-    <div class="panel">
-      <textarea id="editor" placeholder="Metni buraya yaz / yapıştır..."></textarea>
+  <main class="wrap">
+    <div class="row">
+      <button class="primary" id="toNovel">Roman Formatına Çevir</button>
+      <button class="secondary" id="detect">Başlıkları Algıla</button>
+      <button class="muted" id="clear">Temizle</button>
     </div>
+
+    <textarea id="editor" placeholder="Metni buraya yapıştır.
+Boş satır = yeni paragraf.
+Shift+Enter = satır sonu."></textarea>
+
     <div class="hint">
-      İpucu: Yazmaya başlayınca “DOCX İndir” otomatik aktif olur. Metni indirdiğiniz dosya tüm Word (DOCX) uygulamalarında açılır.
+      İpuçları: Paragrafları boş satırla ayır. “Roman Formatına Çevir” akıllı tırnak, kısa/uzun tire ve üç nokta gibi düzeltmeler yapar.
     </div>
-  </div>
+  </main>
 
-<script>
-  const $ = (q)=>document.querySelector(q);
-  const editor = $('#editor');
-  const saveBtn = $('#saveDocx');
-  const openBtn = $('#openBtn');
-  const fileInput = $('#fileInput');
-  const statusBadge = $('#status');
+  <div id="toast" class="toast">Hazır!</div>
 
-  function setStatus(txt){ statusBadge.textContent = txt; }
+  <script>
+    // ufak yardımcılar
+    const $ = sel => document.querySelector(sel);
+    const toast = (msg)=>{ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1800); };
 
-  function updateSaveState(){
-    saveBtn.disabled = editor.value.trim().length === 0;
-  }
+    const editor = $("#editor");
 
-  editor.addEventListener('input', updateSaveState);
-  updateSaveState();
-
-  // Basit .txt açma
-  openBtn.onclick = () => fileInput.click();
-  fileInput.onchange = async (e) => {
-    const f = e.target.files?.[0];
-    if(!f) return;
-    const txt = await f.text();
-    editor.value = txt;
-    updateSaveState();
-    setStatus('Dosya yüklendi');
-    setTimeout(()=>setStatus('Hazır'),1200);
-  };
-
-  // XML kaçışları
-  function x(s){
-    return s
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;")
-      .replace(/'/g,"&apos;");
-  }
-
-  // Word (DOCX) oluştur
-  async function buildDocx(text){
-    const zip = new JSZip();
-
-    // --- document.xml (paragraflar) ---
-    const paragraphs = text.replace(/\r\n/g,"\n").split(/\n{2,}/);
-    const body = paragraphs.map(p=>{
-      if(p.trim()==="") return '<w:p/>';
-      // paragraf içi tek satır kırıkları => w:br
-      const runs = x(p).split("\n").map((line,i)=>{
-        if(i===0) return `<w:r><w:t xml:space="preserve">${line}</w:t></w:r>`;
-        return `<w:r><w:br/><w:t xml:space="preserve">${line}</w:t></w:r>`;
-      }).join('');
-      return `<w:p>${runs}</w:p>`;
-    }).join('');
-
-    const documentXml =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body>
-    ${body}
-    <w:sectPr/>
-  </w:body>
-</w:document>`;
-
-    const stylesXml =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:docDefaults>
-    <w:rPrDefault><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:rPrDefault>
-    <w:pPrDefault><w:pPr><w:spacing w:line="360" w:lineRule="auto"/></w:pPr></w:pPrDefault>
-  </w:docDefaults>
-</w:styles>`;
-
-    const relsRels =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-
-    const contentTypes =
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml"  ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/styles.xml"   ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-</Types>`;
-
-    zip.folder('_rels').file('.rels', relsRels);
-    const w = zip.folder('word');
-    w.file('document.xml', documentXml);
-    w.file('styles.xml', stylesXml);
-    zip.file('[Content_Types].xml', contentTypes);
-
-    const blob = await zip.generateAsync({type:'blob'});
-    return blob;
-  }
-
-  // İndir
-  $('#saveDocx').onclick = async () => {
-    if(saveBtn.disabled) return;
-    try{
-      setStatus('Hazırlanıyor…');
-      const blob = await buildDocx(editor.value || '');
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'roman.docx';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      setStatus('DOCX indirildi');
-      setTimeout(()=>setStatus('Hazır'),1500);
-    }catch(err){
-      console.error(err);
-      setStatus('Hata oldu');
-      alert('DOCX oluşturulurken bir hata oluştu.');
-    }
-  };
-</script>
-</body>
-</html>
+    // Basit tipografik düzeltmeler
+    function smartPunctuation(text){
+      return text
+        .replace(/\"([^\"]*)\"/g,'“$1”')     // "..." → “...”
+        .replace(/\'([^\']*)\'/g,'‘$1’')     // '...' → ‘...’
+        .replace(/\.{3,}/g,'…')              // ... → …
+        .replace(/(^|\s)--(\s|$)/g,'—
