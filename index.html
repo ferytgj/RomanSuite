@@ -1,258 +1,95 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>RomanSuite DOCX – Çevrimdışı</title>
-<style>
-  :root{--bg:#0b0f14;--panel:#111827;--fg:#e5e7eb;--muted:#94a3b8}
-  html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,Segoe UI,Roboto,Arial}
-  .wrap{max-width:880px;margin:0 auto;padding:16px}
-  h1{font-size:18px;margin:6px 0 12px}
-  textarea{width:100%;min-height:240px;background:#0f1520;border:1px solid #1f2937;border-radius:12px;color:var(--fg);padding:12px}
-  .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-  button{border:none;padding:10px 14px;border-radius:12px;font-weight:700;color:#fff;cursor:pointer}
-  .primary{background:linear-gradient(135deg,#2563eb,#06b6d4)}
-  .success{background:linear-gradient(135deg,#059669,#10b981)}
-  .ghost{background:#162235}
-  .muted{color:var(--muted);font-size:12px;margin-top:6px}
-  .preview{margin-top:12px;background:#0f1520;border:1px solid #1f2937;border-radius:12px;padding:12px;max-height:360px;overflow:auto}
-  .para{margin:8px 0;text-align:justify;text-indent:1.25cm}
-  .h1{font-weight:800;text-align:center;margin:16px 0}
-  input[type=text]{width:100%;background:#0f1520;border:1px solid #1f2937;border-radius:10px;color:var(--fg);padding:10px}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drive Bağlantı Testi</title>
+  <style>
+    body{font-family:system-ui, Arial, sans-serif; max-width:720px; margin:24px auto; padding:0 12px}
+    button{font-size:16px; padding:10px 14px; border-radius:10px; border:1px solid #ddd; cursor:pointer;}
+    #out{white-space:pre-wrap; background:#f7f7f8; padding:12px; border-radius:10px; border:1px solid #eee}
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>📖 RomanSuite DOCX – Çevrimdışı</h1>
-  <input id="title" type="text" placeholder="İsteğe bağlı: Eser başlığı (dosya adı)">
-  <textarea id="input" placeholder="Metni buraya yapıştır..."></textarea>
-  <div class="row">
-    <button class="primary" id="fmtBtn">Roman Formatına Çevir</button>
-    <button class="ghost" id="speakBtn">Seslendir</button>
-    <button class="success" id="docxBtn">DOCX İndir</button>
-  </div>
-  <div class="muted">Bu sürüm hiçbir kütüphane indirmez; gerçek <b>.docx</b> üretir ve internetsiz çalışır.</div>
-  <div id="preview" class="preview"></div>
-</div>
+  <h1>Google Drive’a giriş</h1>
+  <p>“Google ile izin ver” butonuna bas, Drive’daki ilk 10 dosyan listelensin.</p>
 
-<script>
-// ===== Yardımcılar (biçimleme) =====
-const $=s=>document.querySelector(s);
-function normalize(t){
-  return t.replace(/\u00A0/g," ").replace(/[ \t]+/g," ")
-          .replace(/\n{3,}/g,"\n\n").replace(/[ \t]+\n/g,"\n").trim();
-}
-function detectHeader(line){
-  const s=line.trim(); if(!s) return null;
-  const roman=/^[IVXLCDM]+([\s:\-].*)?$/i;
-  const low=s.toLowerCase();
-  const starts=w=>low===w||low.startsWith(w+" ")||low.startsWith(w+":")||low.startsWith(w+"-");
-  if(starts("bölüm")||starts("bolum")||roman.test(s)) return "chapter";
-  if(starts("perde")||starts("sahne")||starts("cilt")||starts("kitap")) return "sub";
-  return "body";
-}
-function toParas(text){
-  const lines=text.split(/\r?\n/);
-  const out=[];
-  for(const L of lines){
-    if(!L.trim()){ out.push({type:"spacer",text:""}); continue; }
-    const t=detectHeader(L);
-    out.push({type:t,text:L.trim()});
-  }
-  return out;
-}
-function render(paras){
-  const p=$("#preview"); p.innerHTML="";
-  for(const x of paras){
-    if(x.type==="spacer"){ p.appendChild(document.createElement("br")); continue; }
-    const d=document.createElement("div");
-    d.className = x.type==="chapter"?"h1": x.type==="sub"?"h1 para":"para";
-    d.textContent=x.text; p.appendChild(d);
-  }
-}
-let lastParas=[];
-$("#fmtBtn").onclick=()=>{ lastParas = toParas(normalize($("#input").value)); render(lastParas); };
+  <p id="status">Hazırlanıyor…</p>
+  <button id="btnAuth">Google ile izin ver</button>
+  <button id="btnList" disabled>Drive dosyalarını listele</button>
 
-// ===== Seslendirme =====
-$("#speakBtn").onclick=()=>{
-  if(!("speechSynthesis" in window)) { alert("Tarayıcı TTS desteklemiyor."); return; }
-  const text=window.getSelection().toString().trim()||$("#input").value||"Okunacak metin yok.";
-  const u=new SpeechSynthesisUtterance(text); u.lang="tr-TR";
-  speechSynthesis.cancel(); speechSynthesis.speak(u);
-};
+  <h3>Sonuç</h3>
+  <pre id="out"></pre>
 
-// ===== ZIP (STORE) yazıcı – küçük, bağımsız =====
-function strToU8(s){ const a=new Uint8Array(s.length); for(let i=0;i<s.length;i++) a[i]=s.charCodeAt(i)&255; return a; }
-function crc32(arr){
-  let c=~0; for (let i=0;i<arr.length;i++){ c=c^arr[i]; for(let k=0;k<8;k++) c=(c>>>1) ^ (0xEDB88320 & -(c&1)); }
-  return ~c>>>0;
-}
-function le4(n){ const a=new Uint8Array(4); a[0]=n&255; a[1]=(n>>>8)&255; a[2]=(n>>>16)&255; a[3]=(n>>>24)&255; return a; }
-function le2(n){ const a=new Uint8Array(2); a[0]=n&255; a[1]=(n>>>8)&255; return a; }
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Google API Client -->
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script>
+    const CLIENT_ID = "80645961616-j77eaun602ks7f2hp61gtd5nc5t70bs9.apps.googleusercontent.com";
+    const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
+    const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 
-function makeZip(files){
-  // files: [{name:string, data:Uint8Array}]
-  const chunks = [];
-  const cd = [];
-  let offset = 0;
-  for(const f of files){
-    const nameU8 = strToU8(f.name);
-    const data = f.data;
-    const crc = crc32(data);
-    const comp = data; // STORE (sıkıştırmasız)
-    const lfh = [
-      strToU8("PK\003\004"),
-      le2(20), le2(0), le2(0), le2(0), le2(0),
-      le4(crc), le4(comp.length), le4(data.length),
-      le2(nameU8.length), le2(0),
-      nameU8, comp
-    ];
-    const lfhLen = lfh.reduce((s,b)=>s+b.length,0);
-    chunks.push(...lfh);
-    const cdh = [
-      strToU8("PK\001\002"),
-      le2(20), le2(20), le2(0), le2(0), le2(0), le2(0),
-      le4(crc), le4(comp.length), le4(data.length),
-      le2(nameU8.length), le2(0), le2(0), le2(0), le2(0), le4(0),
-      le4(offset), nameU8
-    ];
-    cd.push(...cdh);
-    offset += lfhLen;
-  }
-  const cdBytesLen = cd.reduce((s,b)=>s+b.length,0);
-  const eocd = [
-    strToU8("PK\005\006"),
-    le2(0), le2(0), le2(files.length), le2(files.length),
-    le4(cdBytesLen), le4(offset),
-    le2(0)
-  ];
-  const totalLen = chunks.reduce((s,b)=>s+b.length,0) + cdBytesLen + eocd.reduce((s,b)=>s+b.length,0);
-  const out = new Uint8Array(totalLen);
-  let p=0;
-  for(const part of chunks){ out.set(part,p); p+=part.length; }
-  for(const part of cd){ out.set(part,p); p+=part.length; }
-  for(const part of eocd){ out.set(part,p); p+=part.length; }
-  return out;
-}
+    const $ = s => document.querySelector(s);
+    const log = m => { $("#out").textContent += (m + "\n"); };
+    const setStatus = t => $("#status").textContent = t;
 
-// ===== DOCX üretimi (OpenXML minimal paket) =====
-function xmlEscape(s){ return s.replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
-
-function buildDocumentXml(paras){
-  const p = paras.map(x=>{
-    if(x.type==="spacer"){
-      return `<w:p/>`;
+    async function loadGapi() {
+      return new Promise(res => gapi.load('client', res));
     }
-    if(x.type==="chapter"){
-      return `<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="240"/><w:pageBreakBefore/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="32"/></w:rPr><w:t>${xmlEscape(x.text)}</w:t></w:r></w:p>`;
+    async function initGapi() {
+      await gapi.client.init({ discoveryDocs: DISCOVERY_DOCS });
+      setStatus("GAPI hazır.");
+      $("#btnList").disabled = false;
     }
-    if(x.type==="sub"){
-      return `<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="160"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t>${xmlEscape(x.text)}</w:t></w:r></w:p>`;
+
+    let tokenClient;
+    function initGIS() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (resp) => {
+          if (resp && resp.access_token) {
+            gapi.client.setToken({ access_token: resp.access_token });
+            setStatus("Oturum açıldı.");
+            listFiles();
+          } else {
+            log("Token alınamadı.");
+          }
+        }
+      });
     }
-    return `<w:p><w:pPr><w:jc w:val="both"/><w:ind w:firstLine="709"/><w:spacing w:after="120"/><w:rPr><w:sz w:val="24"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="24"/></w:rPr><w:t>${xmlEscape(x.text)}</w:t></w:r></w:p>`;
-  }).join("");
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
- xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
- xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
- xmlns:v="urn:schemas-microsoft-com:vml"
- xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
- xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
- xmlns:w10="urn:schemas-microsoft-com:office:word"
- xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
- xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
- xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
- xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
- xmlns:wne="http://schemas.microsoft.com/office/2006/wordml"
- xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
- mc:Ignorable="w14 wp14">
-<w:body>
-${p}
-<w:sectPr>
-  <w:pgSz w:w="8390" w:h="11907"/>
-  <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/>
-  <w:cols w:space="708"/>
-  <w:docGrid w:linePitch="360"/>
-</w:sectPr>
-</w:body>
-</w:document>`;
-}
 
-function nowIso(){ return new Date().toISOString(); }
+    async function listFiles() {
+      try {
+        const r = await gapi.client.drive.files.list({
+          pageSize: 10,
+          fields: "files(id,name,modifiedTime)"
+        });
+        const files = r.result.files || [];
+        if (files.length === 0) { log("Dosya bulunamadı."); return; }
+        log(files.map(f => `${f.name} — ${f.id}`).join("\n"));
+      } catch (e) {
+        log("Hata: " + (e && e.message ? e.message : e));
+      }
+    }
 
-function buildDocx(paras, title){
-  const files = [];
-  function add(name, text){ files.push({name, data: strToU8(text)}); }
+    $("#btnAuth").addEventListener("click", () => {
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    });
+    $("#btnList").addEventListener("click", listFiles);
 
-  add('[Content_Types].xml',
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
-  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
-</Types>`);
-
-  add('_rels/.rels',
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
-  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
-</Relationships>`);
-
-  add('docProps/core.xml',
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
- xmlns:dc="http://purl.org/dc/elements/1.1/"
- xmlns:dcterms="http://purl.org/dc/terms/"
- xmlns:dcmitype="http://purl.org/dc/dcmitype/"
- xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>${xmlEscape(title||"Roman")}</dc:title>
-  <dc:creator>RomanSuite</dc:creator>
-  <cp:lastModifiedBy>RomanSuite</cp:lastModifiedBy>
-  <dcterms:created xsi:type="dcterms:W3CDTF">${nowIso()}</dcterms:created>
-  <dcterms:modified xsi:type="dcterms:W3CDTF">${nowIso()}</dcterms:modified>
-</cp:coreProperties>`);
-
-  add('docProps/app.xml',
-`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
- xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-  <Application>RomanSuite</Application>
-  <DocSecurity>0</DocSecurity>
-  <ScaleCrop>false</ScaleCrop>
-  <HeadingPairs><vt:vector size="2" baseType="variant">
-    <vt:variant><vt:lpstr>Parçalar</vt:lpstr></vt:variant>
-    <vt:variant><vt:i4>1</vt:i4></vt:variant>
-  </vt:vector></HeadingPairs>
-  <TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>Belge</vt:lpstr></vt:vector></TitlesOfParts>
-</Properties>`);
-
-  add('word/document.xml', buildDocumentXml(paras));
-
-  const zipU8 = makeZip(files);
-  return new Blob([zipU8], {type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
-}
-
-// ===== İndir butonu =====
-function downloadBlob(name, blob){
-  const a=document.createElement("a");
-  const url=URL.createObjectURL(blob);
-  a.href=url; a.download=name; document.body.appendChild(a); a.click();
-  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
-}
-
-document.getElementById("docxBtn").onclick=()=>{
-  if(!lastParas.length) document.getElementById("fmtBtn").click();
-  const title=(document.getElementById("title").value||"Roman").trim();
-  const blob = buildDocx(lastParas, title);
-  downloadBlob(title + ".docx", blob);
-};
-</script>
+    (async () => {
+      try {
+        await loadGapi();
+        await initGapi();
+        initGIS();
+        setStatus("Hazır. İzin ver'e basabilirsin.");
+      } catch (e) {
+        setStatus("Başlatma hatası");
+        log(e && e.message ? e.message : e);
+      }
+    })();
+  </script>
 </body>
 </html>
