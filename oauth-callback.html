@@ -1,12 +1,17 @@
-
 <!DOCTYPE html>
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>OAuth Callback</title>
+<title>Giriş Başarılı</title>
+<script>
+window.onload = function() {
+    document.getElementById("status").innerText = "Google hesabınızla giriş başarılı!";
+    // Gerekirse otomatik yönlendirme:
+    // window.location.href = "index.html";
+};
+</script>
 </head>
 <body>
-<h1>Başarılı Giriş</h1>
-<p>Google hesabınız ile giriş yapma işlemi başarıyla tamamlandı.</p>
+<h1 id="status">Giriş yapılıyor...</h1>
 </body>
 </html>
