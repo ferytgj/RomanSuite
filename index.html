@@ -1,95 +1,264 @@
 <!doctype html>
 <html lang="tr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Drive Bağlantı Testi</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sınırlı Metin Girişi — 30.000 Kelime</title>
   <style>
-    body{font-family:system-ui, Arial, sans-serif; max-width:720px; margin:24px auto; padding:0 12px}
-    button{font-size:16px; padding:10px 14px; border-radius:10px; border:1px solid #ddd; cursor:pointer;}
-    #out{white-space:pre-wrap; background:#f7f7f8; padding:12px; border-radius:10px; border:1px solid #eee}
+    :root{--bg:#0b0f14;--card:#0f1720;--ink:#e6eaef;--muted:#9aa4b2;--accent:#22c55e;--danger:#ef4444}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    header{padding:16px 20px;border-bottom:1px solid #121a24;background:linear-gradient(to bottom,#0e141c,#0b0f14)}
+    header h1{margin:0;font-size:20px}
+    main{max-width:960px;margin:24px auto;padding:0 16px}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+    button,.btn{background:#111b26;color:var(--ink);border:1px solid #1b2a3a;border-radius:12px;padding:10px 14px;cursor:pointer}
+    button:hover{border-color:#294057}
+    .btn-accent{background:var(--accent);border-color:transparent;color:#04130a}
+    .btn-danger{background:transparent;border-color:#3a1b1b;color:#ffd2d2}
+    .btn-danger:hover{border-color:#ef4444;color:#fff}
+    .card{background:var(--card);border:1px solid #121a24;border-radius:14px;padding:14px}
+    .row{display:grid;grid-template-columns:1fr;gap:10px}
+    @media (min-width:720px){.row{grid-template-columns:1fr 1fr}}
+    textarea{width:100%;min-height:160px;resize:vertical;border:1px solid #1b2a3a;border-radius:10px;background:#0c141c;color:var(--ink);padding:12px}
+    .meta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+    .item{display:flex;flex-direction:column;gap:8px}
+    .item .actions{display:flex;gap:8px;flex-wrap:wrap}
+    input[type="text"]{width:100%;padding:10px;border-radius:10px;border:1px solid #1b2a3a;background:#0c141c;color:var(--ink)}
+    .search{display:flex;gap:8px;margin:8px 0 16px}
+    .pill{font-size:12px;border:1px solid #223246;border-radius:999px;padding:4px 8px;color:#b6c2cf}
+    footer{opacity:.7;text-align:center;font-size:12px;padding:20px}
+    .limit{color:#ffd2d2}
+    .limit strong{color:#fff}
   </style>
 </head>
 <body>
-  <h1>Google Drive’a giriş</h1>
-  <p>“Google ile izin ver” butonuna bas, Drive’daki ilk 10 dosyan listelensin.</p>
+  <header>
+    <h1>Metin Girişi (30.000 kelime sınırı)</h1>
+    <div class="meta">
+      <span class="pill">Çevrimdışı çalışır</span>
+      <span class="pill">Otomatik kaydetme (LocalStorage)</span>
+      <span class="pill">30.000 kelime/öğe</span>
+    </div>
+  </header>
 
-  <p id="status">Hazırlanıyor…</p>
-  <button id="btnAuth">Google ile izin ver</button>
-  <button id="btnList" disabled>Drive dosyalarını listele</button>
+  <main>
+    <div class="toolbar">
+      <button id="add" class="btn-accent">+ Yeni Metin</button>
+      <button id="export">Dışa Aktar (.json)</button>
+      <label class="btn" for="importFile">İçe Aktar (.json)</label>
+      <input id="importFile" type="file" accept="application/json" hidden>
+      <button id="clearAll" class="btn-danger">Tümünü Sil</button>
+    </div>
 
-  <h3>Sonuç</h3>
-  <pre id="out"></pre>
+    <div class="search">
+      <input id="search" type="text" placeholder="Metinlerde ara… (anında süzme)">
+      <button id="copyAll">Tümünü Kopyala</button>
+    </div>
 
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <!-- Google API Client -->
-  <script src="https://apis.google.com/js/api.js"></script>
+    <div id="list" class="row"></div>
+  </main>
+
+  <footer>RomanSuite — veriler cihazınızda saklanır.</footer>
+
+  <template id="tpl">
+    <div class="item card" data-id="">
+      <input type="text" class="title" placeholder="Başlık (isteğe bağlı)">
+      <textarea class="text" placeholder="Metni buraya yazın…"></textarea>
+      <div class="meta">
+        <span class="count">0 kelime • 0 karakter</span>
+        <span class="limit"><strong>30.000</strong> kelime sınırı</span>
+        <span class="saved">Kaydedildi</span>
+      </div>
+      <div class="actions">
+        <button class="duplicate">Kopyala (çoğalt)</button>
+        <button class="remove">Sil</button>
+        <button class="copy">Metni Panoya Kopyala</button>
+        <button class="download">İndir (.txt)</button>
+      </div>
+    </div>
+  </template>
+
   <script>
-    const CLIENT_ID = "80645961616-j77eaun602ks7f2hp61gtd5nc5t70bs9.apps.googleusercontent.com";
-    const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
-    const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+    const $ = (s,el=document)=>el.querySelector(s);
+    const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
+    const key = "rs_text_items_v1_limit_30000";
+    const listEl = $("#list");
+    const tpl = $("#tpl");
+    const MAX_WORDS = 30000;
 
-    const $ = s => document.querySelector(s);
-    const log = m => { $("#out").textContent += (m + "\n"); };
-    const setStatus = t => $("#status").textContent = t;
+    function uid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36); }
+    function load(){ try{ return JSON.parse(localStorage.getItem(key)) || []; } catch(e){ return []; } }
+    function save(items){ localStorage.setItem(key, JSON.stringify(items)); }
 
-    async function loadGapi() {
-      return new Promise(res => gapi.load('client', res));
+    function splitWords(text){
+      // Birden fazla boşluğu normalize ederek kelime sayımını doğru yap
+      const parts = text.trim().length ? text.trim().split(/\s+/) : [];
+      return parts;
     }
-    async function initGapi() {
-      await gapi.client.init({ discoveryDocs: DISCOVERY_DOCS });
-      setStatus("GAPI hazır.");
-      $("#btnList").disabled = false;
+
+    function enforceLimit(textarea){
+      const val = textarea.value;
+      const words = splitWords(val);
+      if(words.length > MAX_WORDS){
+        const kept = words.slice(0, MAX_WORDS).join(" ");
+        const pos = textarea.selectionStart;
+        textarea.value = kept;
+        // İmleci sona al
+        try{ textarea.setSelectionRange(kept.length, kept.length); }catch{}
+      }
     }
 
-    let tokenClient;
-    function initGIS() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: (resp) => {
-          if (resp && resp.access_token) {
-            gapi.client.setToken({ access_token: resp.access_token });
-            setStatus("Oturum açıldı.");
-            listFiles();
-          } else {
-            log("Token alınamadı.");
-          }
+    function wordCharCount(s){
+      const words = splitWords(s);
+      return {words: words.length, chars: s.length};
+    }
+
+    function render(){
+      listEl.innerHTML = "";
+      const items = load();
+      items.forEach(it=> addCard(it));
+      if(items.length===0) addNew();
+    }
+
+    function addNew(){
+      const it = {id: uid(), title:"", text:"", ts: Date.now()};
+      const items = load(); items.unshift(it); save(items);
+      addCard(it, true);
+    }
+
+    function addCard(it, focus=false){
+      const node = tpl.content.firstElementChild.cloneNode(true);
+      node.dataset.id = it.id;
+      $(".title", node).value = it.title || "";
+      $(".text", node).value = it.text || "";
+      updateCounts(node);
+      bindCard(node);
+      if(focus) $(".text", node).focus();
+      listEl.prepend(node);
+    }
+
+    function updateCounts(node){
+      const text = $(".text", node).value;
+      const {words, chars} = wordCharCount(text);
+      const countEl = $(".count", node);
+      countEl.textContent = `${words} / ${MAX_WORDS} kelime • ${chars} karakter`;
+      countEl.style.color = words >= MAX_WORDS ? "#ffb4b4" : "";
+    }
+
+    function updateItem(node){
+      const id = node.dataset.id;
+      const items = load();
+      const i = items.findIndex(x=>x.id===id);
+      if(i>-1){
+        items[i].title = $(".title", node).value;
+        items[i].text  = $(".text", node).value;
+        items[i].ts = Date.now();
+        save(items);
+      }
+      updateCounts(node);
+    }
+
+    function bindCard(node){
+      const title = $(".title", node);
+      const text = $(".text", node);
+      const removeBtn = $(".remove", node);
+      const copyBtn = $(".copy", node);
+      const dlBtn = $(".download", node);
+      const dupBtn = $(".duplicate", node);
+
+      title.addEventListener("input", ()=>updateItem(node));
+      text.addEventListener("input", ()=>{
+        enforceLimit(text);
+        updateItem(node);
+      });
+
+      removeBtn.addEventListener("click", ()=>{
+        if(!confirm("Bu metni silmek istiyor musunuz?")) return;
+        const items = load().filter(x=>x.id!==node.dataset.id);
+        save(items);
+        node.remove();
+      });
+
+      copyBtn.addEventListener("click", async ()=>{
+        const t = text.value;
+        try{ await navigator.clipboard.writeText(t); alert("Metin panoya kopyalandı."); }
+        catch(e){ alert("Kopyalama başarısız. Metni manuel seçip kopyalayın."); }
+      });
+
+      dlBtn.addEventListener("click", ()=>{
+        const blob = new Blob([text.value], {type:"text/plain;charset=utf-8"});
+        const a = document.createElement("a");
+        const nm = (title.value||"metin").replace(/[^\p{L}\p{N}\-_ ]/gu,"").trim() || "metin";
+        a.href = URL.createObjectURL(blob);
+        a.download = nm + ".txt";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+      });
+
+      dupBtn.addEventListener("click", ()=>{
+        const items = load();
+        const id = node.dataset.id;
+        const i = items.findIndex(x=>x.id===id);
+        if(i>-1){
+          const copy = {...items[i], id: uid(), ts: Date.now()};
+          items.splice(i,0,copy);
+          save(items);
+          addCard(copy, false);
         }
       });
     }
 
-    async function listFiles() {
-      try {
-        const r = await gapi.client.drive.files.list({
-          pageSize: 10,
-          fields: "files(id,name,modifiedTime)"
-        });
-        const files = r.result.files || [];
-        if (files.length === 0) { log("Dosya bulunamadı."); return; }
-        log(files.map(f => `${f.name} — ${f.id}`).join("\n"));
-      } catch (e) {
-        log("Hata: " + (e && e.message ? e.message : e));
-      }
-    }
+    // Toolbar
+    $("#add").addEventListener("click", addNew);
 
-    $("#btnAuth").addEventListener("click", () => {
-      tokenClient.requestAccessToken({ prompt: 'consent' });
+    $("#clearAll").addEventListener("click", ()=>{
+      if(confirm("Tüm metinleri silmek istiyor musunuz?")){ localStorage.removeItem(key); render(); }
     });
-    $("#btnList").addEventListener("click", listFiles);
 
-    (async () => {
-      try {
-        await loadGapi();
-        await initGapi();
-        initGIS();
-        setStatus("Hazır. İzin ver'e basabilirsin.");
-      } catch (e) {
-        setStatus("Başlatma hatası");
-        log(e && e.message ? e.message : e);
-      }
-    })();
+    $("#export").addEventListener("click", ()=>{
+      const data = localStorage.getItem(key) || "[]";
+      const blob = new Blob([data], {type:"application/json;charset=utf-8"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "romansuite_texts.json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    });
+
+    $("#importFile").addEventListener("change", (e)=>{
+      const f = e.target.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const arr = JSON.parse(reader.result);
+          if(Array.isArray(arr)){ localStorage.setItem(key, JSON.stringify(arr)); render(); }
+          else alert("Geçersiz dosya.");
+        }catch{ alert("JSON okunamadı."); }
+      };
+      reader.readAsText(f);
+    });
+
+    $("#copyAll").addEventListener("click", async ()=>{
+      const items = load();
+      const text = items.map(x => (x.title?("### "+x.title+"\n"):"") + x.text).join("\n\n---\n\n");
+      try{ await navigator.clipboard.writeText(text); alert("Tüm metinler panoya kopyalandı."); }
+      catch(e){ alert("Kopyalama başarısız. Metni manuel seçip kopyalayın."); }
+    });
+
+    // Arama
+    $("#search").addEventListener("input", (e)=>{
+      const q = e.target.value.toLowerCase();
+      $$(".item", listEl).forEach(node=>{
+        const t = $(".text", node).value.toLowerCase();
+        const h = $(".title", node).value.toLowerCase();
+        node.style.display = (t.includes(q) || h.includes(q)) ? "" : "none";
+      });
+    });
+
+    // İlk render
+    render();
   </script>
 </body>
-</html>
+        </html>
